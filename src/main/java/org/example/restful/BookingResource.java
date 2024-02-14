@@ -57,13 +57,37 @@ public class BookingResource {
                     if (!locationNumberStr.isEmpty()) {
                         location_number = Integer.parseInt(locationNumberStr);
                     } else {
-                    }                    String clientName = bookingElement.getElementsByTagName("client").item(0).getTextContent();
+                    }
+                    Node clientNode = bookingElement.getElementsByTagName("client").item(0);
+                    String clientName = (clientNode != null) ? clientNode.getTextContent() : "";
                     String agencyName = bookingElement.getElementsByTagName("agency").item(0).getTextContent();
-                    double price = Double.parseDouble(bookingElement.getElementsByTagName("price").item(0).getTextContent().replace(",", "."));
-                    String roomType = bookingElement.getElementsByTagName("room").item(0).getTextContent();
-                    String hotelName = bookingElement.getElementsByTagName("hotel").item(0).getTextContent();
-                    String checkIn = bookingElement.getElementsByTagName("check_in").item(0).getTextContent();
-                    int roomNights = Integer.parseInt(bookingElement.getElementsByTagName("room_nights").item(0).getTextContent());
+                    Node priceNode = bookingElement.getElementsByTagName("price").item(0);
+                    double price = 0.0;
+                    if (priceNode != null) {
+                        String priceStr = priceNode.getTextContent().replace(",", ".");
+                        if (!priceStr.isEmpty()) {
+                            price = Double.parseDouble(priceStr);
+                        }
+                    }
+
+                    Node roomNode = bookingElement.getElementsByTagName("room").item(0);
+                    String roomType = (roomNode != null) ? roomNode.getTextContent() : "";
+
+                    Node hotelNode = bookingElement.getElementsByTagName("hotel").item(0);
+                    String hotelName = (hotelNode != null) ? hotelNode.getTextContent() : "";
+
+                    Node checkInNode = bookingElement.getElementsByTagName("check_in").item(0);
+                    String checkIn = (checkInNode != null) ? checkInNode.getTextContent() : "";
+
+                    Node roomNightsNode = bookingElement.getElementsByTagName("room_nights").item(0);
+                    int roomNights = 0;
+                    if (roomNightsNode != null) {
+                        String roomNightsStr = roomNightsNode.getTextContent();
+                        if (!roomNightsStr.isEmpty()) {
+                            roomNights = Integer.parseInt(roomNightsStr);
+                        }
+                    }
+
 
                     Booking booking = new Booking(location_number, clientName, agencyName, price, roomType, hotelName, checkIn, roomNights);
                     bookings.add(booking);
@@ -85,7 +109,7 @@ public class BookingResource {
     @Consumes(MediaType.APPLICATION_JSON)
     public Response createBooking(Booking booking) {
 
-        // Añadir el booking al XML
+
         try {
             File xmlFile = new File("./resources/bookings.xml");
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
