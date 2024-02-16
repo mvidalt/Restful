@@ -8,8 +8,7 @@ import org.xml.sax.SAXException;
 
 import javax.print.attribute.standard.Media;
 import javax.ws.rs.*;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
+import javax.ws.rs.core.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -29,14 +28,108 @@ public class BookingResource {
         this.bookings = new ArrayList<>();
     }
 
+    @Context
+    private UriInfo uriInfo;
+
+
 
     @GET
-    @Produces(MediaType.APPLICATION_JSON)
-    public List<Booking> getAllBookings() {
-
+    @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
+    public Response getAllBookings(@Context HttpHeaders headers) {
         try {
             File xmlFile = new File("./resources/bookings.xml");
+            DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+            Document doc = dBuilder.parse(xmlFile);
+            doc.getDocumentElement().normalize();
 
+            NodeList bookingNodes = doc.getElementsByTagName("booking");
+
+            bookings.clear();
+
+            for (int i = 0; i < bookingNodes.getLength(); i++) {
+                Node bookingNode = bookingNodes.item(i);
+                if (bookingNode.getNodeType() == Node.ELEMENT_NODE) {
+                    Element bookingElement = (Element) bookingNode;
+
+                    String locationNumberStr = bookingElement.getAttribute("location_number");
+                    int locationNumber = Integer.parseInt(locationNumberStr);
+
+                    String clientName = bookingElement.getElementsByTagName("client").item(0).getTextContent();
+                    String agencyName = bookingElement.getElementsByTagName("agency").item(0).getTextContent();
+
+                    Node priceNode = bookingElement.getElementsByTagName("price").item(0);
+                    double price = 0.0;
+                    if (priceNode != null) {
+                        String priceStr = priceNode.getTextContent().replace(",", ".");
+                        if (!priceStr.isEmpty()) {
+                            price = Double.parseDouble(priceStr);
+                        }
+                    }
+
+                    String roomType = bookingElement.getElementsByTagName("room").item(0).getTextContent();
+                    String hotelName = bookingElement.getElementsByTagName("hotel").item(0).getTextContent();
+                    String checkIn = bookingElement.getElementsByTagName("check_in").item(0).getTextContent();
+
+                    int roomNights = 0;
+                    Node roomNightsNode = bookingElement.getElementsByTagName("room_nights").item(0);
+                    if (roomNightsNode != null) {
+                        String roomNightsStr = roomNightsNode.getTextContent();
+                        if (!roomNightsStr.isEmpty()) {
+                            roomNights = Integer.parseInt(roomNightsStr);
+                        }
+                    }
+
+
+                    // Crear un objeto Booking y agregarlo a la lista
+                    Booking booking = new Booking(locationNumber, clientName, agencyName, price, roomType, hotelName, checkIn, roomNights);
+                    bookings.add(booking);
+                }
+            }
+
+            List<MediaType> acceptableMediaTypes = headers.getAcceptableMediaTypes();
+            MediaType mediaType = acceptableMediaTypes.isEmpty() ? MediaType.TEXT_PLAIN_TYPE : acceptableMediaTypes.get(0);
+
+            StringBuilder table = new StringBuilder();
+            table.append("<table border=\"1\">");
+            table.append("<tr>");
+            table.append("<th>Location Number</th>");
+            table.append("<th>Client</th>");
+            table.append("<th>Agency</th>");
+            table.append("<th>Price</th>");
+            table.append("<th>Room</th>");
+            table.append("<th>Hotel</th>");
+            table.append("<th>Check-In</th>");
+            table.append("<th>Room Nights</th>");
+            table.append("</tr>");
+
+            for (Booking booking : bookings) {
+                table.append("<tr>");
+                table.append("<td style=\"text-align: center;\">").append(booking.getLocation_number()).append("</td>");
+                table.append("<td style=\"text-align: center;\">").append(booking.getClient()).append("</td>");
+                table.append("<td style=\"text-align: center;\">").append(booking.getAgency()).append("</td>");
+                table.append("<td style=\"text-align: center;\">").append(booking.getPrice()).append("</td>");
+                table.append("<td style=\"text-align: center;\">").append(booking.getRoom()).append("</td>");
+                table.append("<td style=\"text-align: center;\">").append(booking.getHotel()).append("</td>");
+                table.append("<td style=\"text-align: center;\">").append(booking.getCheckIn()).append("</td>");
+                table.append("<td style=\"text-align: center;\">").append(booking.getRoomNights()).append("</td>");
+                table.append("</tr>");
+            }
+
+            table.append("</table>");
+            return Response.ok(table.toString(), mediaType).build();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GET
+    @Path("/{location_number}")
+    @Produces(MediaType.TEXT_HTML)
+    public Response getBookingByLocationNumber(@PathParam("location_number") int locationNumber) {
+        try {
+            File xmlFile = new File("./resources/bookings.xml");
             DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
             DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
             Document doc = dBuilder.parse(xmlFile);
@@ -48,59 +141,67 @@ public class BookingResource {
                 Node bookingNode = bookingNodes.item(i);
                 if (bookingNode.getNodeType() == Node.ELEMENT_NODE) {
                     Element bookingElement = (Element) bookingNode;
-
                     String locationNumberStr = bookingElement.getAttribute("location_number");
-                    int location_number = 0;
-                    if (!locationNumberStr.isEmpty()) {
-                        location_number = Integer.parseInt(locationNumberStr);
-                    } else {
-                    }
-                    Node clientNode = bookingElement.getElementsByTagName("client").item(0);
-                    String clientName = (clientNode != null) ? clientNode.getTextContent() : "";
-                    String agencyName = bookingElement.getElementsByTagName("agency").item(0).getTextContent();
-                    Node priceNode = bookingElement.getElementsByTagName("price").item(0);
-                    double price = 0.0;
-                    if (priceNode != null) {
-                        String priceStr = priceNode.getTextContent().replace(",", ".");
-                        if (!priceStr.isEmpty()) {
-                            price = Double.parseDouble(priceStr);
+                    int currentLocationNumber = Integer.parseInt(locationNumberStr);
+
+                    if (currentLocationNumber == locationNumber) {
+                        String clientName = bookingElement.getElementsByTagName("client").item(0).getTextContent();
+                        String agencyName = bookingElement.getElementsByTagName("agency").item(0).getTextContent();
+                        double price = 0.0;
+                        Node priceNode = bookingElement.getElementsByTagName("price").item(0);
+                        if (priceNode != null) {
+                            String priceStr = priceNode.getTextContent().replace(",", ".");
+                            if (!priceStr.isEmpty()) {
+                                price = Double.parseDouble(priceStr);
+                            }
                         }
+                        String roomType = bookingElement.getElementsByTagName("room").item(0).getTextContent();
+                        String hotelName = bookingElement.getElementsByTagName("hotel").item(0).getTextContent();
+                        String checkIn = bookingElement.getElementsByTagName("check_in").item(0).getTextContent();
+                        int roomNights = Integer.parseInt(bookingElement.getElementsByTagName("room_nights").item(0).getTextContent());
+
+                        // Crear una tabla HTML con la información de la reserva
+                        StringBuilder table = new StringBuilder();
+                        table.append("<table border=\"1\">");
+                        table.append("<tr>");
+                        table.append("<th>Location Number</th>");
+                        table.append("<th>Client</th>");
+                        table.append("<th>Agency</th>");
+                        table.append("<th>Price</th>");
+                        table.append("<th>Room</th>");
+                        table.append("<th>Hotel</th>");
+                        table.append("<th>Check-In</th>");
+                        table.append("<th>Room Nights</th>");
+                        table.append("</tr>");
+
+                        table.append("<tr>");
+                        table.append("<td style=\"text-align: center;\">").append(currentLocationNumber).append("</td>");
+                        table.append("<td style=\"text-align: center;\">").append(clientName).append("</td>");
+                        table.append("<td style=\"text-align: center;\">").append(agencyName).append("</td>");
+                        table.append("<td style=\"text-align: center;\">").append(price).append("</td>");
+                        table.append("<td style=\"text-align: center;\">").append(roomType).append("</td>");
+                        table.append("<td style=\"text-align: center;\">").append(hotelName).append("</td>");
+                        table.append("<td style=\"text-align: center;\">").append(checkIn).append("</td>");
+                        table.append("<td style=\"text-align: center;\">").append(roomNights).append("</td>");
+                        table.append("</tr>");
+
+                        table.append("</table>");
+
+                        return Response.ok(table.toString()).build();
                     }
-
-                    Node roomNode = bookingElement.getElementsByTagName("room").item(0);
-                    String roomType = (roomNode != null) ? roomNode.getTextContent() : "";
-
-                    Node hotelNode = bookingElement.getElementsByTagName("hotel").item(0);
-                    String hotelName = (hotelNode != null) ? hotelNode.getTextContent() : "";
-
-                    Node checkInNode = bookingElement.getElementsByTagName("check_in").item(0);
-                    String checkIn = (checkInNode != null) ? checkInNode.getTextContent() : "";
-
-                    Node roomNightsNode = bookingElement.getElementsByTagName("room_nights").item(0);
-                    int roomNights = 0;
-                    if (roomNightsNode != null) {
-                        String roomNightsStr = roomNightsNode.getTextContent();
-                        if (!roomNightsStr.isEmpty()) {
-                            roomNights = Integer.parseInt(roomNightsStr);
-                        }
-                    }
-
-
-                    Booking booking = new Booking(location_number, clientName, agencyName, price, roomType, hotelName, checkIn, roomNights);
-                    bookings.add(booking);
                 }
             }
 
+            // Si no se encuentra la reserva con el locationNumber dado, devolver 404 (Not Found)
+            return Response.status(Response.Status.NOT_FOUND).entity("Reserva " +  locationNumber + " no encontrada").build();
 
-            for (Booking booking : bookings) {
-                System.out.println(booking);
-            }
         } catch (Exception e) {
             e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
         }
-
-        return bookings;
     }
+
+
     @POST
     @Consumes(MediaType.APPLICATION_JSON)
     public Response createBooking(Booking booking) {
@@ -113,11 +214,28 @@ public class BookingResource {
 
             Element rootElement = doc.getDocumentElement();
 
+            // Verificar si el ID ya está en uso
+            String locationNumberStr = String.valueOf(booking.getLocation_number());
+            NodeList existingBookings = doc.getElementsByTagName("booking");
+            for (int i = 0; i < existingBookings.getLength(); i++) {
+                Node node = existingBookings.item(i);
+                if (node.getNodeType() == Node.ELEMENT_NODE) {
+                    Element existingBookingElement = (Element) node;
+                    String existingLocationNumberStr = existingBookingElement.getAttribute("location_number");
+                    if (existingLocationNumberStr.equals(locationNumberStr)) {
+                        // Si el ID ya está en uso, devolver un mensaje de error
+                        return Response.status(Response.Status.BAD_REQUEST).entity("ID repetido: " + locationNumberStr).build();
+                    }
+                }
+            }
+
+            // Si el ID no está repetido, continuar con la creación de la reserva
+
             // Crear el elemento booking
             Element bookingElement = doc.createElement("booking");
 
             // Añadir el atributo location_number
-            bookingElement.setAttribute("location_number", String.valueOf(booking.getLocation_number()));
+            bookingElement.setAttribute("location_number", locationNumberStr);
 
             // Generar IDs inventados
             int clientId = generateId("client");
@@ -141,10 +259,6 @@ public class BookingResource {
             TransformerFactory transformerFactory = TransformerFactory.newInstance();
             Transformer transformer = transformerFactory.newTransformer();
 
-            // Configurar la salida para que esté bien indentada
-//            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4"); // Espacios de indentación
-
             DOMSource source = new DOMSource(doc);
             StreamResult result = new StreamResult(xmlFile);
             transformer.transform(source, result);
@@ -155,8 +269,9 @@ public class BookingResource {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).build();
         }
 
-        return Response.status(Response.Status.CREATED).build();
+        return Response.status(Response.Status.CREATED).entity("Reserva añadida correctamente").build();
     }
+
 
     @DELETE
     @Path("/{locationNumber}")
@@ -189,13 +304,13 @@ public class BookingResource {
                         StreamResult result = new StreamResult(xmlFile);
                         transformer.transform(source, result);
 
-                        return Response.status(Response.Status.OK).build();
+                        return Response.status(Response.Status.OK).entity("Reserva borrada correctamente").build();
                     }
                 }
             }
 
-            // Si no se encuentra el booking con el locationNumber dado, devolver 404 (Not Found)
-            return Response.status(Response.Status.NOT_FOUND).build();
+
+            return Response.status(Response.Status.NOT_FOUND).entity("Reserva no encontrada: " + locationNumber).build();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -242,13 +357,13 @@ public class BookingResource {
                         StreamResult result = new StreamResult(xmlFile);
                         transformer.transform(source, result);
 
-                        return Response.status(Response.Status.OK).build();
+                        return Response.status(Response.Status.OK).entity("Reserva editada correctamente").build();
                     }
                 }
             }
 
             // Si no se encuentra el booking con el locationNumber dado, devolver 404 (Not Found)
-            return Response.status(Response.Status.NOT_FOUND).build();
+            return Response.status(Response.Status.NOT_FOUND).entity("Reserva no encontrada: " + locationNumber).build();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -268,11 +383,8 @@ public class BookingResource {
     }
 
     private int generateId(String elementType) {
-        // Implementa aquí la lógica para generar IDs inventados
-        // Por ejemplo, puedes usar un contador que se incrementa cada vez que se llama a esta función
-        // o puedes usar algún otro método que te parezca conveniente
-        // Aquí se devuelve un valor ficticio, reemplázalo con tu lógica real
-        return (int) (Math.random() * 1000);
+
+        return (int) (Math.random() * 10);
     }
 
 
